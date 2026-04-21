@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "name": "tririgaReactLabelSyncPlugin",
   "version": "1.0.0",
@@ -32,3 +33,39 @@
     "prop-types": "^15.8.1"
   }
 }
+=======
+{
+  "name": "tririgaReactLabelSyncPlugin",
+  "version": "1.0.0",
+  "description": "Automates converting hardcoded string labels in your Tririga React app into appMessages[AppMsg.MESSAGES.KEY] pattern",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "tririgaReactLabelSyncPlugin": "./index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "tririga",
+    "react",
+    "label",
+    "sync",
+    "automation",
+    "vite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "fs-extra": "^11.1.0",
+    "glob": "^10.3.0",
+    "@babel/parser": "^7.23.0",
+    "@babel/traverse": "^7.23.0",
+    "@babel/generator": "^7.23.0",
+    "@babel/types": "^7.23.0"
+  },
+  "devDependencies": {
+    "prop-types": "^15.8.1"
+  }
+}
+>>>>>>> 56475fd (inital commit)
