@@ -7,7 +7,8 @@ import path from "path";
 import fs from "fs-extra";
 import { scanFile } from "./scanner.js";
 import { syncToJson, syncToAppMsg } from "./syncer.js";
-import { transformFile } from "./transformer.js";
+import { transformFile, wrapComponentWithHOC } from "./transformer.js";
+import { detectRoutes } from "./routeDetector.js";
 import crypto from "crypto";
 
 const DEFAULT_CONFIG = {
@@ -206,6 +207,38 @@ async function run(userConfig = {}) {
     });
     console.log("\n   Pass appMessages from parent component:");
     console.log("      • <ComponentName appMessages={appMessages} />\n");
+  }
+
+  // Step 7: Check TririgaUXWebApp routes and wrap route components with withTriDictionary
+  const appFile = path.resolve(process.cwd(), "src/app/TririgaUXWebApp.jsx");
+  if (fs.existsSync(appFile)) {
+    const { hasRoutes, routeComponents } = detectRoutes(appFile);
+    if (hasRoutes && routeComponents.length > 0) {
+      console.log("\n🔀  Detected routes in src/app/TririgaUXWebApp.jsx — wrapping route components with withTriDictionary where needed\n");
+
+      for (const rc of routeComponents) {
+        const compName = rc.name;
+        // find file by component name among discovered files
+        const target = files.find((f) => {
+          const base = path.basename(f, path.extname(f));
+          return base === compName;
+        });
+        if (target && fs.existsSync(target)) {
+          const original = fs.readFileSync(target, "utf8");
+          const wrapped = wrapComponentWithHOC(target, compName, dryRun);
+          if (wrapped && !dryRun) {
+            trackChanges(target, original, changeTrackingDir);
+            console.log(`   ✓ Wrapped ${path.relative(process.cwd(), target)} with withTriDictionary`);
+          } else if (wrapped && dryRun) {
+            console.log(`   • Would wrap ${path.relative(process.cwd(), target)} with withTriDictionary (dry run)`);
+          } else {
+            // not modified
+          }
+        } else {
+          console.log(`   • Could not locate file for route component ${compName}`);
+        }
+      }
+    }
   }
 
   console.log(

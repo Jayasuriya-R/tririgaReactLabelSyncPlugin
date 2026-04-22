@@ -25,17 +25,16 @@ const t = _t.default || _t;
 const LABEL_PROPS = ["label", "t-label", "placeholder", "title", "helperText", "value", "text"];
 
 /**
- * Builds AST node for: AppMsg.getMessage(AppMsg.MESSAGES.KEY)
+ * Builds AST node for: appMessages[AppMsg.MESSAGES.KEY]
  */
 function buildLabelExpression(key) {
-  return t.callExpression(
-    t.memberExpression(t.identifier("AppMsg"), t.identifier("getMessage")),
-    [
-      t.memberExpression(
-        t.memberExpression(t.identifier("AppMsg"), t.identifier("MESSAGES")),
-        t.identifier(key)
-      )
-    ]
+  return t.memberExpression(
+    t.identifier("appMessages"),
+    t.memberExpression(
+      t.memberExpression(t.identifier("AppMsg"), t.identifier("MESSAGES")),
+      t.identifier(key)
+    ),
+    true
   );
 }
 
@@ -80,8 +79,16 @@ function transformFile(filePath, labelMap, dryRun = false) {
 
   let modified = false;
   let foundReplacements = false;
+  let hasAppMsgImport = false;
 
   traverse(ast, {
+    // Check if AppMsg is already imported
+    ImportDeclaration(path) {
+      if (path.node.source.value.includes("AppMsg")) {
+        hasAppMsgImport = true;
+      }
+    },
+
     // Find component name
     ExportDefaultDeclaration(path) {
       if (path.node.declaration.id) {
@@ -131,9 +138,73 @@ function transformFile(filePath, labelMap, dryRun = false) {
   });
 
   // Check if component needs appMessages prop
-  // Note: Using AppMsg.getMessage() pattern, so no prop needed
   if (foundReplacements) {
-    needsAppMessagesProp = false; // AppMsg.getMessage() doesn't need props
+    needsAppMessagesProp = true; // Component now needs appMessages prop
+    
+    // Add AppMsg import if not already present
+    if (!hasAppMsgImport) {
+      const appMsgImport = t.importDeclaration(
+        [t.importSpecifier(t.identifier("AppMsg"), t.identifier("AppMsg"))],
+        t.stringLiteral("../utils")
+      );
+      ast.program.body.unshift(appMsgImport);
+      modified = true;
+    }
+    
+    // Add appMessages to component's parameters
+    traverse(ast, {
+      ExportDefaultDeclaration(path) {
+        const decl = path.node.declaration;
+        
+        // Handle: export default function Demo() { ... }
+        if (decl.type === "FunctionDeclaration" || decl.type === "FunctionExpression") {
+          if (!decl.params || decl.params.length === 0) {
+            // No parameters, add object pattern with appMessages
+            decl.params = [t.objectPattern([
+              t.objectProperty(t.identifier("appMessages"), t.identifier("appMessages"), false, true)
+            ])];
+            modified = true;
+          } else {
+            const param = decl.params[0];
+            if (param.type === "ObjectPattern") {
+              const hasAppMessages = param.properties.some(
+                (prop) => prop.key.name === "appMessages"
+              );
+              if (!hasAppMessages) {
+                param.properties.unshift(
+                  t.objectProperty(t.identifier("appMessages"), t.identifier("appMessages"), false, true)
+                );
+                modified = true;
+              }
+            }
+          }
+        }
+      },
+      ArrowFunctionExpression(path) {
+        // Skip if already in an export or traversed
+        if (path.parent.type === "ExportDefaultDeclaration") return;
+        
+        if (!path.node.params || path.node.params.length === 0) {
+          path.node.params = [t.objectPattern([
+            t.objectProperty(t.identifier("appMessages"), t.identifier("appMessages"), false, true)
+          ])];
+          modified = true;
+        } else {
+          const param = path.node.params[0];
+          if (param.type === "ObjectPattern") {
+            const hasAppMessages = param.properties.some(
+              (prop) => prop.key.name === "appMessages"
+            );
+            if (!hasAppMessages) {
+              param.properties.unshift(
+                t.objectProperty(t.identifier("appMessages"), t.identifier("appMessages"), false, true)
+              );
+              modified = true;
+            }
+          }
+        }
+      }
+    });
   }
 
   if (!dryRun && modified) {
@@ -149,3 +220,78 @@ function transformFile(filePath, labelMap, dryRun = false) {
 }
 
 export { transformFile };
+
+/**
+ * Wrap a component's default export with withTriDictionary(ComponentName)
+ * Adds import for withTriDictionary from ../utils if missing
+ */
+function wrapComponentWithHOC(filePath, componentName, dryRun = false) {
+  const code = fs.readFileSync(filePath, "utf8");
+  let ast;
+  try {
+    ast = parser.parse(code, {
+      sourceType: "module",
+      plugins: ["jsx", "typescript"],
+    });
+  } catch (e) {
+    console.warn(`⚠️  Could not parse ${filePath}: ${e.message}`);
+    return false;
+  }
+
+  let modified = false;
+  let hasWrapperImport = false;
+
+  traverse(ast, {
+    ImportDeclaration(path) {
+      if (path.node.source.value === "../utils") {
+        // check for withTriDictionary specifier
+        const hasSpec = path.node.specifiers.some(
+          (s) => s.imported && s.imported.name === "withTriDictionary"
+        );
+        if (hasSpec) hasWrapperImport = true;
+      }
+    },
+
+    ExportDefaultDeclaration(path) {
+      const decl = path.node.declaration;
+      // If export default is an identifier: export default ComponentName;
+      if (decl.type === "Identifier" && decl.name === componentName) {
+        path.node.declaration = t.callExpression(
+          t.identifier("withTriDictionary"),
+          [t.identifier(componentName)]
+        );
+        modified = true;
+      } else if (decl.type === "FunctionDeclaration") {
+        // Named function declaration: export default function Comp() {}
+        const name = decl.id && decl.id.name;
+        if (name === componentName) {
+          // replace export default declaration with call expression
+          path.node.declaration = t.callExpression(
+            t.identifier("withTriDictionary"),
+            [t.identifier(componentName)]
+          );
+          modified = true;
+        }
+      }
+    },
+  });
+
+  if (!hasWrapperImport && modified) {
+    const importDecl = t.importDeclaration(
+      [t.importSpecifier(t.identifier("withTriDictionary"), t.identifier("withTriDictionary"))],
+      t.stringLiteral("../utils")
+    );
+    ast.program.body.unshift(importDecl);
+    modified = true;
+  }
+
+  if (!dryRun && modified) {
+    const { code: newCode } = generate(ast, { retainLines: true, jsescOption: { minimal: true } }, code);
+    fs.writeFileSync(filePath, newCode, "utf8");
+    return true;
+  }
+
+  return modified;
+}
+
+export { wrapComponentWithHOC };
