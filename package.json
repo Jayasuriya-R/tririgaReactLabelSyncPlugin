@@ -1,6 +1,6 @@
 {
   "name": "tririga-react-label-sync-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automates converting hardcoded string labels in your Tririga React app into appMessages[AppMsg.MESSAGES.KEY] pattern",
   "main": "index.js",
   "type": "module",
