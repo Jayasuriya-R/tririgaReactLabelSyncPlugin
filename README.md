@@ -9,6 +9,8 @@
 
 ---
 
+⚠️ Disclaimer: This is an independent, community-built tool and is not affiliated with, endorsed by, or officially supported by IBM or IBM TRIRIGA. Always run --dry-run before applying changes to your codebase.
+
 ## 📌 What It Does
 
 Writing hardcoded strings during development is fast — but cleaning them up for internationalization is painful. This plugin automates the entire process.
