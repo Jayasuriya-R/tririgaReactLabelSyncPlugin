@@ -6,9 +6,10 @@ import { glob } from "glob";
 import path from "path";
 import fs from "fs-extra";
 import { scanFile } from "./scanner.js";
-import { syncToJson, syncToAppMsg } from "./syncer.js";
+import { syncToJson, syncToAppMsg, ensureGetAppMessagesFunction } from "./syncer.js";
 import { transformFile, wrapComponentWithHOC } from "./transformer.js";
 import { detectRoutes } from "./routeDetector.js";
+import { createDictionaryProvider, updateMainJsx, wrapComponentWithDictionary } from "./dictionarySetup.js";
 import crypto from "crypto";
 
 const DEFAULT_CONFIG = {
@@ -154,6 +155,12 @@ async function run(userConfig = {}) {
     appMsgAdded.forEach((key) => console.log(`     + ${key}`));
   }
 
+  // Step 4.5: Ensure getAppMessages() function exists
+  const hasGetAppMessages = ensureGetAppMessagesFunction(appMsgFile, dryRun);
+  if (hasGetAppMessages) {
+    console.log(`\n✅  Added getAppMessages() function to ApplicationMessages.js`);
+  }
+
   // Step 5: Build reverse map for transformer
   const existingJson = fs.readJsonSync(labelsFile);
   const labelMap = {};
@@ -241,12 +248,67 @@ async function run(userConfig = {}) {
     }
   }
 
+  // Step 8: Set up DictionaryProvider infrastructure
+  console.log("\n📦  Setting up DictionaryProvider infrastructure...\n");
+  
+  const providerCreated = createDictionaryProvider(dryRun);
+  if (providerCreated) {
+    console.log("   ✓ Created src/utils/providers/DictionaryProvider.js");
+  } else if (!dryRun && !providerCreated) {
+    // Already exists, but still should be mentioned
+    const providerPath = path.resolve(process.cwd(), "src/utils/providers/DictionaryProvider.js");
+    if (fs.existsSync(providerPath)) {
+      console.log("   • DictionaryProvider.js already exists");
+    }
+  } else if (dryRun && providerCreated) {
+    console.log("   • Would create src/utils/providers/DictionaryProvider.js (dry run)");
+  }
+
+  const mainUpdated = updateMainJsx(dryRun);
+  if (mainUpdated) {
+    console.log("   ✓ Updated src/main.jsx to use DictionaryProvider");
+  } else if (!dryRun) {
+    console.log("   • src/main.jsx already configured or not found");
+  } else if (dryRun && mainUpdated) {
+    console.log("   • Would update src/main.jsx (dry run)");
+  }
+
+  // Wrap route components with withDictionary (new DictionaryProvider approach)
+  const routeAppFile = path.resolve(process.cwd(), "src/app/TririgaUXWebApp.jsx");
+  if (fs.existsSync(routeAppFile)) {
+    const { hasRoutes, routeComponents } = detectRoutes(routeAppFile);
+    if (hasRoutes && routeComponents.length > 0) {
+      console.log("\n   Wrapping route components with withDictionary:\n");
+      for (const rc of routeComponents) {
+        const compName = rc.name;
+        const target = files.find((f) => {
+          const base = path.basename(f, path.extname(f));
+          return base === compName;
+        });
+
+        if (target && fs.existsSync(target)) {
+          const original = fs.readFileSync(target, "utf8");
+          const wrapped = wrapComponentWithDictionary(target, dryRun);
+          
+          if (wrapped && !dryRun) {
+            trackChanges(target, original, changeTrackingDir);
+            console.log(`   ✓ Wrapped ${compName} with withDictionary`);
+          } else if (wrapped && dryRun) {
+            console.log(`   • Would wrap ${compName} with withDictionary (dry run)`);
+          } else if (!wrapped && fs.existsSync(target)) {
+            console.log(`   • ${compName} already wrapped or not applicable`);
+          }
+        }
+      }
+    }
+  }
+
   console.log(
     `\n✅  Done! ${totalReplacements} replacements made${dryRun ? " (dry run)" : ""}\n`
   );
 
   // Show undo command
-  if (totalReplacements > 0 && !dryRun) {
+  if ((totalReplacements > 0 || providerCreated || mainUpdated) && !dryRun) {
     console.log(
       '💡  To undo all changes, run: npx tririga-react-label-sync-plugin --undo\n'
     );

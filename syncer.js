@@ -2,6 +2,7 @@
 // Handles syncing found labels into:
 // 1. messages.json           → adds new key-value pairs
 // 2. ApplicationMessages.js  → adds new constants to MESSAGES object
+// 3. DictionaryProvider setup → adds getAppMessages() function
 
 import fs from "fs-extra";
 import { toScreamingSnakeCase, deduplicateKey } from "./keyGenerator.js";
@@ -105,4 +106,40 @@ function syncToAppMsg(appMsgFilePath, newKeys, dryRun = false) {
   return added;
 }
 
-export { syncToJson, syncToAppMsg };
+/**
+ * Ensures getAppMessages() function exists in ApplicationMessages.js
+ * Adds it if not present
+ */
+function ensureGetAppMessagesFunction(appMsgFilePath, dryRun = false) {
+  if (!fs.existsSync(appMsgFilePath)) {
+    return false;
+  }
+
+  let content = fs.readFileSync(appMsgFilePath, "utf8");
+
+  // Check if getAppMessages already exists
+  if (content.includes("export function getAppMessages()")) {
+    return false; // Already exists
+  }
+
+  // Find the getMessage function and add getAppMessages after it
+  const getMessagePattern = /export function getMessage\(label\)\s*\{[^}]*\}/;
+  const match = content.match(getMessagePattern);
+
+  if (!match) {
+    return false; // Could not find getMessage function
+  }
+
+  const insertionPoint = match.index + match[0].length;
+  const newFunction = `\n\nexport function getAppMessages() {\n  return appMessages;\n}`;
+
+  const updatedContent = content.slice(0, insertionPoint) + newFunction + content.slice(insertionPoint);
+
+  if (!dryRun) {
+    fs.writeFileSync(appMsgFilePath, updatedContent, "utf8");
+  }
+
+  return true;
+}
+
+export { syncToJson, syncToAppMsg, ensureGetAppMessagesFunction };

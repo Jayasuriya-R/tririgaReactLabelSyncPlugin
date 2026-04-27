@@ -1,11 +1,11 @@
 {
-  "name": "tririgaReactLabelSyncPlugin",
+  "name": "tririga-react-label-sync-plugin",
   "version": "1.0.0",
   "description": "Automates converting hardcoded string labels in your Tririga React app into appMessages[AppMsg.MESSAGES.KEY] pattern",
   "main": "index.js",
   "type": "module",
   "bin": {
-    "tririgaReactLabelSyncPlugin": "./index.js"
+    "tririga-react-label-sync": "./index.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -16,10 +16,35 @@
     "label",
     "sync",
     "automation",
-    "vite"
+    "vite",
+    "ibm",
+    "plugin"
   ],
-  "author": "",
+  "author": "Jayasuriya R <r.jayasuriya.work@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jayasuriya-R/tririgaReactLabelSyncPlugin.git"
+  },
+  "homepage": "https://github.com/Jayasuriya-R/tririgaReactLabelSyncPlugin#readme",
+  "bugs": {
+    "url": "https://github.com/Jayasuriya-R/tririgaReactLabelSyncPlugin/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "index.js",
+    "dictionaryProvider.js",
+    "keyGenerator.js",
+    "orchestrator.js",
+    "scanner.js",
+    "syncer.js",
+    "transformer.js",
+    "vitePlugin.js",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "fs-extra": "^11.1.0",
     "glob": "^10.3.0",
